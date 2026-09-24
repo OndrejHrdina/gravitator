@@ -5,10 +5,11 @@ extends Node2D
 ## _process so that time can be dilated for hit-stop and slow motion.
 ##
 ## Command line (after `--`): --seed=N  --stars=N  --autoplay  --debug
+##   --mass=N (start heavier)  --zoom=N (extra zoom-out)  --gallery (shader line-up)
 
 const DT := 1.0 / 60.0
 const MAX_STEPS_PER_FRAME := 3
-const PLAYER_VIEW_RADII := 70.0  # view height in player radii
+const PLAYER_VIEW_RADII := 62.0  # view height in player radii
 const TRAJECTORY_STEPS := 90
 
 var universe: Universe
@@ -64,6 +65,7 @@ var _ref_uid := -1
 var _indicator_t := 0.0
 var _warned_small := false
 var _gallery := false
+var _start_mass := 0.0
 
 
 func _ready() -> void:
@@ -83,6 +85,8 @@ func _parse_args() -> void:
 			autopilot = true
 		elif a == "--debug":
 			show_debug = true
+		elif a.begins_with("--mass="):
+			_start_mass = maxf(0.3, float(a.get_slice("=", 1)))
 		elif a == "--gallery":
 			_gallery = true
 		elif a.begins_with("--zoom="):
@@ -183,6 +187,10 @@ func _new_universe() -> void:
 		_make_gallery()
 	else:
 		UniverseGenerator.generate(universe, _stars)
+	if _start_mass > 0.0:
+		# Debug: skip ahead to a bigger player.
+		universe.mass[universe.player] = _start_mass
+		universe.rad[universe.player] = Phys.radius(_start_mass)
 	dead = false
 	candidate_uid = -1
 	hud.hide_game_over()
@@ -233,11 +241,14 @@ func _process(delta: float) -> void:
 		_acc += delta * time_scale
 		var steps := 0
 		while _acc >= DT and steps < MAX_STEPS_PER_FRAME:
+			# Precision is centred on the player and scales with its size (not
+			# with how far you zoom out).
 			if universe.player >= 0:
 				universe.focus = universe.player_pos()
+				universe.focus_radius = maxf(universe.rad[universe.player] * 32.0, 150.0)
 			else:
 				universe.focus = _cam_target
-			universe.focus_radius = _view_radius
+				universe.focus_radius = 200.0
 			universe.step(DT)
 			_handle_events()
 			_acc -= DT
@@ -295,10 +306,10 @@ func _update_time_scale(delta: float) -> void:
 			time_scale = 1.0
 
 
-## Hit-stop / slow motion: drop to `scale` for `hold` real seconds.
-func _dip_time(scale: float, hold: float) -> void:
-	if scale <= _slow_scale or _slow_hold <= 0.0:
-		_slow_scale = scale
+## Hit-stop / slow motion: drop to `factor` for `hold` real seconds.
+func _dip_time(factor: float, hold: float) -> void:
+	if factor <= _slow_scale or _slow_hold <= 0.0:
+		_slow_scale = factor
 	_slow_hold = maxf(_slow_hold, hold)
 
 
@@ -327,7 +338,8 @@ func _player_input(delta: float) -> void:
 	overlay.can_thrust = universe.mass[p] >= Phys.MIN_THRUST_MASS
 	if (want and _thrust_cd <= 0.0) or (just and _thrust_cd <= Phys.THRUST_INTERVAL * 0.5):
 		if universe.thrust(aim):
-			_thrust_cd = Phys.THRUST_INTERVAL
+			# The autopilot paces itself: every burst costs mass.
+			_thrust_cd = Phys.THRUST_INTERVAL * (2.5 if autopilot else 1.0)
 			overlay.thrust_flash = 1.0
 			_handle_events()
 		elif not _warned_small:
@@ -361,7 +373,8 @@ func _update_camera(delta: float, alpha: float) -> void:
 		else:
 			pr = 6.0
 	var tz := _target_zoom(pr)
-	var rate := 2.2 if not dead else 1.2
+	# Ease out slowly so you get to see yourself swell after a big meal.
+	var rate := (1.1 if tz < zoom else 2.5) if not dead else 1.2
 	zoom = exp(lerpf(log(zoom), log(tz), 1.0 - exp(-delta * rate)))
 	_zoom_punch = lerpf(_zoom_punch, 0.0, 1.0 - exp(-delta * 7.0))
 	camera.zoom = Vector2.ONE * zoom * (1.0 + _zoom_punch)
@@ -513,15 +526,27 @@ func _predict_trajectory(p: int, alpha: float) -> void:
 	srcs.append(Vector4.ZERO)
 	sm.append(u.mass[ref])
 	sr.append(u.rad[ref])
-	var cand: Array = []
+	# The three next-strongest pulls (linear scan, no sorting).
+	var top := [-1, -1, -1]
+	var top_a := [0.0, 0.0, 0.0]
+	var pm := u.mass[p]
 	for i in u.n:
-		if i == p or i == ref or u.mass[i] < u.mass[p]:
+		if i == p or i == ref or u.mass[i] < pm:
 			continue
-		var d2 := (u.px[i] - pos.x) ** 2 + (u.py[i] - pos.y) ** 2 + 1.0
-		cand.append([u.mass[i] / d2, i])
-	cand.sort_custom(func(a, b): return a[0] > b[0])
-	for k in mini(3, cand.size()):
-		var i: int = cand[k][1]
+		var a := u.mass[i] / ((u.px[i] - pos.x) ** 2 + (u.py[i] - pos.y) ** 2 + 1.0)
+		if a <= top_a[2]:
+			continue
+		var slot := 2
+		while slot > 0 and a > top_a[slot - 1]:
+			top_a[slot] = top_a[slot - 1]
+			top[slot] = top[slot - 1]
+			slot -= 1
+		top_a[slot] = a
+		top[slot] = i
+	for k in 3:
+		var i: int = top[k]
+		if i < 0:
+			break
 		srcs.append(Vector4(u.px[i] - rpos.x, u.py[i] - rpos.y, u.vx[i] - rvel.x, u.vy[i] - rvel.y))
 		sm.append(u.mass[i])
 		sr.append(u.rad[i])
@@ -619,9 +644,9 @@ func _fx_merge(ev: Dictionary) -> void:
 	var tang := nrm.orthogonal()
 	var count := int(clampf(8.0 + ratio * 120.0 + vrel * 0.1, 8.0, 70.0))
 	var spd := rs * 4.0 + vrel * 0.35
-	fx.burst(pos, carrier, cs, count / 3, spd * 0.4, spd, rs * 0.35, 0.55, tang, 0.45, 3.0, 1.3)
-	fx.burst(pos, carrier, cs, count / 3, spd * 0.4, spd, rs * 0.35, 0.55, -tang, 0.45, 3.0, 1.3)
-	fx.burst(pos, carrier, cs.lerp(Color.WHITE, 0.3), count / 3, spd * 0.3, spd * 0.8, rs * 0.3, 0.4, nrm, 0.8, 3.5, 1.6)
+	fx.burst(pos, carrier, cs, count / 3.0, spd * 0.4, spd, rs * 0.35, 0.55, tang, 0.45, 3.0, 1.3)
+	fx.burst(pos, carrier, cs, count / 3.0, spd * 0.4, spd, rs * 0.35, 0.55, -tang, 0.45, 3.0, 1.3)
+	fx.burst(pos, carrier, cs.lerp(Color.WHITE, 0.3), count / 3.0, spd * 0.3, spd * 0.8, rs * 0.3, 0.4, nrm, 0.8, 3.5, 1.6)
 	fx.ring(pos, carrier, rs * 2.5, cs, 0.3, FX.Ring.FLASH, 0.1, 0.4 + ratio * 1.5)
 	var bpos := Vector2(ev["bx"], ev["by"])
 	if role == 1:
@@ -658,9 +683,9 @@ func _fx_shatter(ev: Dictionary) -> void:
 	var vrel: float = ev["vrel"]
 	var nf: int = ev["n_frag"]
 	var count := int(clampf(24.0 + nf * 10.0 + vrel * 0.1, 24.0, 160.0))
-	fx.burst(pos, carrier, cs, count, vrel * 0.2 + rs * 3.0, vrel * 0.8 + rs * 10.0, rs * 0.4, 0.8, nrm, 1.3, 2.2, 1.8)
-	fx.burst(pos, carrier, cs.darkened(0.2), count / 3, vrel * 0.1, vrel * 0.4 + rs * 4.0, rs * 0.7, 1.4, nrm, 1.1, 1.2, 0.6)
-	fx.ring(pos, carrier, rs * 5.0, Color(1.0, 0.8, 0.5), 0.3, FX.Ring.FLASH, 0.1, 1.6)
+	fx.burst(pos, carrier, cs, count, vrel * 0.2 + rs * 3.0, vrel * 0.8 + rs * 10.0, rs * 0.4, 0.8, nrm, 1.3, 2.2, 1.1)
+	fx.burst(pos, carrier, cs.darkened(0.2), count / 3.0, vrel * 0.1, vrel * 0.4 + rs * 4.0, rs * 0.7, 1.4, nrm, 1.1, 1.2, 0.6)
+	fx.ring(pos, carrier, rs * 4.0, Color(1.0, 0.8, 0.5), 0.3, FX.Ring.FLASH, 0.1, 1.1)
 	fx.ring(pos, carrier, rs * 9.0 + rb * 0.4, cs, 0.6, FX.Ring.SHOCKWAVE, 0.05, 1.3)
 	var ss := _screen_size(rs * 6.0)
 	sfx.play("crack", _vol(pos, clampf(-14.0 + ss * 60.0 + (6.0 if role != 0 else 0.0), -18.0, 2.0)), clampf(1.6 - log(rs + 1.0) * 0.3, 0.5, 1.6), 40)
@@ -688,10 +713,10 @@ func _fx_catastrophe(ev: Dictionary) -> void:
 	var ca: Color = ev["color_a"]
 	var cb: Color = ev["color_b"]
 	var count := int(clampf(80.0 + float(ev["n_frag"]) * 12.0, 80.0, 300.0))
-	fx.burst(pos, carrier, ca, count / 2, r * 2.0, r * 14.0, r * 0.25, 1.1, Vector2.ZERO, PI, 1.5, 2.0)
-	fx.burst(pos, carrier, cb, count / 2, r * 2.0, r * 14.0, r * 0.25, 1.1, Vector2.ZERO, PI, 1.5, 2.0)
-	fx.burst(pos, carrier, Color(1.0, 0.9, 0.7), count / 3, r * 6.0, r * 22.0, r * 0.15, 0.6, Vector2.ZERO, PI, 2.5, 3.0)
-	fx.ring(pos, carrier, r * 6.0, Color(1.0, 0.95, 0.85), 0.5, FX.Ring.FLASH, 0.1, 3.0)
+	fx.burst(pos, carrier, ca, count / 2.0, r * 2.0, r * 14.0, r * 0.25, 1.1, Vector2.ZERO, PI, 1.5, 1.4)
+	fx.burst(pos, carrier, cb, count / 2.0, r * 2.0, r * 14.0, r * 0.25, 1.1, Vector2.ZERO, PI, 1.5, 1.4)
+	fx.burst(pos, carrier, Color(1.0, 0.9, 0.7), count / 3.0, r * 6.0, r * 22.0, r * 0.15, 0.6, Vector2.ZERO, PI, 2.5, 1.5)
+	fx.ring(pos, carrier, r * 4.0, Color(1.0, 0.9, 0.75), 0.45, FX.Ring.FLASH, 0.1, 1.3)
 	fx.ring(pos, carrier, r * 14.0, ca, 1.0, FX.Ring.SHOCKWAVE, 0.04, 2.0)
 	fx.ring(pos, carrier, r * 22.0, cb, 1.5, FX.Ring.SHOCKWAVE, 0.03, 1.2)
 	var ss := _screen_size(r)
@@ -720,11 +745,13 @@ func _fx_ignite(ev: Dictionary) -> void:
 		fx.burst(pos, carrier, Color(1.0, 0.85, 0.5), 200, r * 1.0, r * 8.0, r * 0.08, 1.8, Vector2.ZERO, PI, 1.0, 2.5)
 		sfx.play("ignite", 0.0, 1.0, 500)
 		_add_wave(pos, 1.2, 0.8, 1.6)
-		_flash = 0.7
-		_flash_color = Color(1.0, 0.9, 0.7)
+		_flash = 0.3
+		_flash_color = Color(1.0, 0.85, 0.55)
 		_shake = 1.0
 		_dip_time(0.25, 0.6)
 	if is_player:
+		# This *is* the rank-up; don't let the generic notice overwrite it.
+		_last_rank = Phys.rank_index(float(ev["m"]))
 		hud.notice("IGNITION!  YOU ARE A STAR", Color(1.0, 0.9, 0.5), 3.0)
 	elif vis > 0.0:
 		hud.notice("A STAR IS BORN", Color(1.0, 0.9, 0.6), 2.0)
@@ -771,14 +798,19 @@ func _on_death(ev: Dictionary) -> void:
 	_add_wave(pos, 1.3, 0.8, 1.4)
 	sfx.play("boom", 2.0, 0.9, 0)
 	sfx.play("crack", 0.0, 0.7, 0)
-	fx.burst(pos, Vector2.ZERO, Color(1.0, 0.5, 0.3), 120, 20.0, 260.0, 1.5, 1.2, Vector2.ZERO, PI, 1.5, 2.5)
+	var vel := Vector2(ev["vx"], ev["vy"])
+	var r: float = ev["r"]
+	var c: Color = ev["color"]
+	fx.burst(pos, vel, c, 70, r * 5.0, r * 45.0, r * 0.3, 1.3, Vector2.ZERO, PI, 1.6, 0.9)
+	fx.burst(pos, vel, Color(1.0, 0.55, 0.3), 40, r * 3.0, r * 25.0, r * 0.2, 0.9, Vector2.ZERO, PI, 2.0, 0.8)
+	fx.ring(pos, vel, r * 14.0, c, 1.2, FX.Ring.SHOCKWAVE, 0.04, 1.6)
 	var cause: String = ev["cause"]
 	var title := "SHATTERED" if cause == "SHATTERED" else "CONSUMED"
 	var why := "The impact overcame your structural integrity." if cause == "SHATTERED" else "You touched something bigger (%s) and it swallowed you." % Phys.format_mass(float(ev["killer_mass"]))
 	var survived := universe.time - _life_start
 	var body := "%s\n\nPeak mass  %s  (%s)\nRocks eaten  %d     Survived  %d:%02d\nBest ever  %s" % [
 		why, Phys.format_mass(peak_mass), Phys.rank_name(peak_mass), eaten,
-		int(survived) / 60, int(survived) % 60, Phys.format_mass(best_mass)]
+		floori(survived / 60.0), int(survived) % 60, Phys.format_mass(best_mass)]
 	hud.show_game_over(title, body)
 
 
@@ -791,6 +823,7 @@ func _respawn() -> void:
 	if idx < 0:
 		return
 	universe.set_player(idx, Phys.RESPAWN_GRACE)
+	_thrust_cd = 0.35  # the key press that brought you back shouldn't fire
 	dead = false
 	candidate_uid = -1
 	lives += 1
@@ -928,6 +961,7 @@ func _autopilot_decide() -> Array:
 	var pm := u.mass[p]
 	var ppos := u.player_pos()
 	var pv := Vector2(u.vx[p], u.vy[p])
+	var burst := Phys.EXHAUST_SPEED * Phys.THRUST_FRACTION
 	var best := -1
 	var best_score := 0.0
 	var threat := -1
@@ -940,8 +974,12 @@ func _autopilot_decide() -> Array:
 		var m := u.mass[i]
 		if m < pm * 0.9:
 			if d < _view_radius * 9.0 and m > pm * 0.02:
-				var score := m / (d + u.rad[p] * 10.0)
-				if score > best_score:
+				# Worth it only if the meal outweighs the mass burnt matching
+				# its velocity.
+				var dv := (pv - Vector2(u.vx[i], u.vy[i])).length() + 30.0
+				var cost := pm * (1.0 - pow(1.0 - Phys.THRUST_FRACTION, dv / burst))
+				var score := (m - cost) / (d + u.rad[p] * 10.0)
+				if m > cost * 1.5 and score > best_score:
 					best_score = score
 					best = i
 		else:
@@ -970,6 +1008,6 @@ func _autopilot_decide() -> Array:
 		return [dir, false]
 	# Otherwise steer: close in briskly, but slowly enough to swallow rather
 	# than shatter the prey.
-	var desired := dir * clampf(dist * 0.25, 15.0, 70.0)
+	var desired := dir * clampf(dist * 0.25, burst * 1.3, 70.0)
 	var need := desired - va
-	return [need.normalized(), need.length() > Phys.EXHAUST_SPEED * Phys.THRUST_FRACTION * 0.9]
+	return [need.normalized(), need.length() > burst * 0.6]

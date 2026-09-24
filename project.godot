@@ -18,5 +18,6 @@ window/stretch/aspect="expand"
 
 [rendering]
 
+anti_aliasing/quality/use_debanding=true
 viewport/hdr_2d=true
 environment/defaults/default_clear_color=Color(0.012, 0.004, 0.03, 1)

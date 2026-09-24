@@ -72,11 +72,11 @@ func spark(pos: Vector2, vel: Vector2, carrier: Vector2, color: Color, size: flo
 
 
 ## A spray of sparks. `dir` = Vector2.ZERO means all directions.
-func burst(pos: Vector2, carrier: Vector2, color: Color, count: int, speed_min: float, speed_max: float,
+func burst(pos: Vector2, carrier: Vector2, color: Color, count: float, speed_min: float, speed_max: float,
 		size: float, life: float, dir := Vector2.ZERO, spread := PI, drag := 2.0, brightness := 1.0) -> void:
-	count = mini(count, 400)
+	var n := mini(int(count), 400)
 	var base_ang := dir.angle() if dir != Vector2.ZERO else 0.0
-	for k in count:
+	for k in n:
 		var a := base_ang + (_rng.randf_range(-spread, spread) if dir != Vector2.ZERO else _rng.randf() * TAU)
 		var spd := _rng.randf_range(speed_min, speed_max)
 		var c := color

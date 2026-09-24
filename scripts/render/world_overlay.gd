@@ -52,20 +52,21 @@ func clear_trail() -> void:
 
 
 ## Floating number that rises and fades; `vel` lets it drift with its body.
-func float_text(pos: Vector2, vel: Vector2, text: String, color: Color, scale := 1.0) -> void:
-	_texts.append({"pos": pos, "vel": vel, "text": text, "color": color, "t": 0.0, "scale": scale})
+func float_text(pos: Vector2, vel: Vector2, text: String, color: Color, text_scale := 1.0) -> void:
+	_texts.append({"pos": pos, "vel": vel, "text": text, "color": color, "t": 0.0, "scale": text_scale})
 	if _texts.size() > 40:
 		_texts.pop_front()
 
 
-## `time_scale` keeps floating texts glued to their bodies during slow motion.
-func tick(delta: float, time_scale := 1.0) -> void:
+## `sim_rate` (the time scale) keeps floating texts glued to their bodies
+## during slow motion.
+func tick(delta: float, sim_rate := 1.0) -> void:
 	thrust_flash = maxf(0.0, thrust_flash - delta * 6.0)
 	var keep: Array[Dictionary] = []
 	for t in _texts:
 		t["t"] = float(t["t"]) + delta
 		var v: Vector2 = t["vel"]
-		t["pos"] = (t["pos"] as Vector2) + v * delta * time_scale
+		t["pos"] = (t["pos"] as Vector2) + v * delta * sim_rate
 		if float(t["t"]) < 1.4:
 			keep.append(t)
 	_texts = keep

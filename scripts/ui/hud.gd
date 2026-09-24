@@ -104,10 +104,10 @@ func _place(c: Control, preset: int, left: float, top: float, right: float, bott
 	c.offset_bottom = bottom
 
 
-func _label(size: int, color: Color, outline: int, parent: Control = null) -> Label:
+func _label(font_size: int, color: Color, outline: int, parent: Control = null) -> Label:
 	var l := Label.new()
 	var ls := LabelSettings.new()
-	ls.font_size = size
+	ls.font_size = font_size
 	ls.font_color = color
 	ls.outline_size = outline
 	ls.outline_color = Color(0.0, 0.0, 0.05, 0.75)
@@ -166,8 +166,10 @@ func show_game_over(title: String, body: String) -> void:
 	over_hint.text = ""
 	over_root.visible = true
 	over_root.modulate.a = 0.0
+	# Let the explosion play out before the panel fades in.
 	var tw := create_tween()
-	tw.tween_property(over_root, "modulate:a", 1.0, 0.5)
+	tw.tween_interval(0.7)
+	tw.tween_property(over_root, "modulate:a", 1.0, 0.6)
 
 
 func hide_game_over() -> void:

@@ -12,6 +12,7 @@ var _players: Array[AudioStreamPlayer] = []
 var _next := 0
 var _last_play := {}
 var _rng := RandomNumberGenerator.new()
+var _drone_player: AudioStreamPlayer
 
 
 func _ready() -> void:
@@ -28,11 +29,18 @@ func _ready() -> void:
 		var p := AudioStreamPlayer.new()
 		add_child(p)
 		_players.append(p)
-	var drone := AudioStreamPlayer.new()
-	drone.stream = _wav(_drone(), true)
-	drone.volume_db = -17.0
-	add_child(drone)
-	drone.play()
+	_drone_player = AudioStreamPlayer.new()
+	_drone_player.stream = _wav(_drone(), true)
+	_drone_player.volume_db = -17.0
+	add_child(_drone_player)
+	_drone_player.play()
+
+
+func _exit_tree() -> void:
+	# Stop everything so no playback outlives the audio server at shutdown.
+	_drone_player.stop()
+	for p in _players:
+		p.stop()
 
 
 ## Plays `name`. Rapid repeats of the same sound are rate-limited so a swarm of
@@ -226,7 +234,7 @@ func _drone() -> PackedFloat32Array:
 	var amps := [0.35, 0.22, 0.18, 0.08, 0.05]
 	# Filtered noise "wind", generated a little longer than the loop so the
 	# start can be cross-faded with the overhang: no click at the loop point.
-	var fade := RATE / 2
+	var fade := floori(RATE * 0.5)
 	var lp := 0.0
 	var noise := PackedFloat32Array()
 	noise.resize(n + fade)

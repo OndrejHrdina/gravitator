@@ -128,13 +128,13 @@ func build(n: int, px: PackedFloat64Array, py: PackedFloat64Array, mass: PackedF
 	var size := maxf(maxx - minx, maxy - miny)
 	if size <= 0.0:
 		size = 1.0
-	var scale := 65535.0 / (size * 1.000001)
+	var quant := 65535.0 / (size * 1.000001)
 
 	# Morton keys: (code << 21) | body_index, sorted natively.
 	_keys.resize(n)
 	for i in n:
-		var qx := int((px[i] - minx) * scale)
-		var qy := int((py[i] - miny) * scale)
+		var qx := int((px[i] - minx) * quant)
+		var qy := int((py[i] - miny) * quant)
 		qx = (qx | (qx << 8)) & 0x00FF00FF
 		qx = (qx | (qx << 4)) & 0x0F0F0F0F
 		qx = (qx | (qx << 2)) & 0x33333333
@@ -296,7 +296,7 @@ func compute(due: PackedByteArray, th2: PackedFloat64Array, ax: PackedFloat64Arr
 		force_usec = 0
 		return
 	var workers := maxi(1, OS.get_processor_count())
-	_chunks = clampi(na / MIN_CHUNK, 1, workers * 4) if use_threads else 1
+	_chunks = clampi(floori(na / float(MIN_CHUNK)), 1, workers * 4) if use_threads else 1
 	_chunk_len = int(ceil(float(na) / float(_chunks)))
 	_chunks = int(ceil(float(na) / float(_chunk_len)))
 	while pair_lists.size() < _chunks:

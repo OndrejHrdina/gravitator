@@ -10,7 +10,7 @@ uniform int u_wave_count = 0;
 uniform float u_aberration = 0.0;
 uniform float u_flash = 0.0;
 uniform vec3 u_flash_color = vec3(1.0);
-uniform float u_vignette = 0.35;
+uniform float u_vignette = 0.3;
 uniform float u_desaturate = 0.0;
 
 void fragment() {
@@ -46,5 +46,13 @@ void fragment() {
 	col += u_flash_color * u_flash;
 	float vig = smoothstep(1.25, 0.25, length(fromc * vec2(aspect * 0.8, 1.0)));
 	col *= mix(1.0, vig, u_vignette);
+	// Triangular dither of ±1 LSB in sRGB space: kills banding in the dark
+	// gradients of space before the final 8-bit output.
+	vec2 fc = FRAGCOORD.xy;
+	float n = fract(sin(dot(fc, vec2(12.9898, 78.233))) * 43758.5453)
+			+ fract(sin(dot(fc, vec2(39.3468, 11.1353))) * 24634.6345) - 1.0;
+	vec3 srgb = pow(max(col, vec3(0.0)), vec3(1.0 / 2.2));
+	srgb += n / 255.0;
+	col = pow(max(srgb, vec3(0.0)), vec3(2.2));
 	COLOR = vec4(col, 1.0);
 }

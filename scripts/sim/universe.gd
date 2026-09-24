@@ -57,6 +57,8 @@ var alive := PackedByteArray()
 var player := -1
 var player_uid := -1
 var player_grace_until := -1.0
+## The fragment picked for rebirth ghosts through everything until it's taken.
+var protected_uid := -1
 
 ## Where precision matters (the player) and how large "near" is.
 var focus := Vector2.ZERO
@@ -171,6 +173,7 @@ func set_player(i: int, grace := 0.0) -> void:
 	player = i
 	player_uid = uid[i] if i >= 0 else -1
 	player_grace_until = time + grace
+	protected_uid = -1
 
 
 func player_pos() -> Vector2:
@@ -309,6 +312,8 @@ func _resolve_collisions(dt: float) -> void:
 				continue
 			var gi := group[i]
 			if gi != 0 and gi == group[j] and time < group_until[i] and time < group_until[j]:
+				continue
+			if protected_uid >= 0 and (uid[i] == protected_uid or uid[j] == protected_uid):
 				continue
 			var dx := px[j] - px[i]
 			var dy := py[j] - py[i]
@@ -670,7 +675,9 @@ func _player_died(cause: String, candidate: int, killer: int, player_mass: float
 			rad[killer] = Phys.radius(mass[killer])
 			mass[candidate] = target
 			rad[candidate] = Phys.radius(target)
+	protected_uid = uid[candidate] if candidate >= 0 else -1
 	events.append({"type": Ev.DEATH, "cause": cause, "x": px[player], "y": py[player],
+		"vx": vx[player], "vy": vy[player], "r": rad[player], "color": col[player],
 		"candidate_uid": uid[candidate] if candidate >= 0 else -1,
 		"killer_uid": uid[killer] if killer >= 0 else -1,
 		"killer_mass": mass[killer] if killer >= 0 else 0.0})
@@ -700,6 +707,7 @@ func thrust(dir: Vector2) -> bool:
 	vy[p] = ov.y + d.y * u * dm / m
 	mass[p] = m2
 	rad[p] = Phys.radius(m2)
+	ripple[p] = minf(1.0, ripple[p] + 0.18)  # the blast shudders through the rock
 	var re := Phys.radius(dm)
 	var epos := Vector2(px[p], py[p]) - d * (rad[p] + re + 0.6)
 	var evel := ov - d * u * m2 / m
