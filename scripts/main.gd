@@ -683,7 +683,7 @@ func _fx_shatter(ev: Dictionary) -> void:
 	var vrel: float = ev["vrel"]
 	var nf: int = ev["n_frag"]
 	var count := int(clampf(24.0 + nf * 10.0 + vrel * 0.1, 24.0, 160.0))
-	fx.burst(pos, carrier, cs, count, vrel * 0.2 + rs * 3.0, vrel * 0.8 + rs * 10.0, rs * 0.4, 0.8, nrm, 1.3, 2.2, 1.1)
+	fx.burst(pos, carrier, cs, count, vrel * 0.2 + rs * 3.0, vrel * 0.8 + rs * 10.0, rs * 0.4, 0.8, nrm, 1.3, 2.2, 1.1, rs)
 	fx.burst(pos, carrier, cs.darkened(0.2), count / 3.0, vrel * 0.1, vrel * 0.4 + rs * 4.0, rs * 0.7, 1.4, nrm, 1.1, 1.2, 0.6)
 	fx.ring(pos, carrier, rs * 4.0, Color(1.0, 0.8, 0.5), 0.3, FX.Ring.FLASH, 0.1, 1.1)
 	fx.ring(pos, carrier, rs * 9.0 + rb * 0.4, cs, 0.6, FX.Ring.SHOCKWAVE, 0.05, 1.3)
@@ -713,8 +713,8 @@ func _fx_catastrophe(ev: Dictionary) -> void:
 	var ca: Color = ev["color_a"]
 	var cb: Color = ev["color_b"]
 	var count := int(clampf(80.0 + float(ev["n_frag"]) * 12.0, 80.0, 300.0))
-	fx.burst(pos, carrier, ca, count / 2.0, r * 2.0, r * 14.0, r * 0.25, 1.1, Vector2.ZERO, PI, 1.5, 1.4)
-	fx.burst(pos, carrier, cb, count / 2.0, r * 2.0, r * 14.0, r * 0.25, 1.1, Vector2.ZERO, PI, 1.5, 1.4)
+	fx.burst(pos, carrier, ca, count / 2.0, r * 2.0, r * 14.0, r * 0.25, 1.1, Vector2.ZERO, PI, 1.5, 1.4, r)
+	fx.burst(pos, carrier, cb, count / 2.0, r * 2.0, r * 14.0, r * 0.25, 1.1, Vector2.ZERO, PI, 1.5, 1.4, r)
 	fx.burst(pos, carrier, Color(1.0, 0.9, 0.7), count / 3.0, r * 6.0, r * 22.0, r * 0.15, 0.6, Vector2.ZERO, PI, 2.5, 1.5)
 	fx.ring(pos, carrier, r * 4.0, Color(1.0, 0.9, 0.75), 0.45, FX.Ring.FLASH, 0.1, 1.3)
 	fx.ring(pos, carrier, r * 14.0, ca, 1.0, FX.Ring.SHOCKWAVE, 0.04, 2.0)
@@ -796,13 +796,13 @@ func _on_death(ev: Dictionary) -> void:
 	_flash_color = Color(1.0, 0.35, 0.15)
 	_aberration = 1.5
 	_add_wave(pos, 1.3, 0.8, 1.4)
-	sfx.play("boom", 2.0, 0.9, 0)
-	sfx.play("crack", 0.0, 0.7, 0)
+	sfx.play("boom", -3.0, 0.9, 0)
+	sfx.play("crack", -6.0, 0.7, 0)
 	var vel := Vector2(ev["vx"], ev["vy"])
 	var r: float = ev["r"]
 	var c: Color = ev["color"]
-	fx.burst(pos, vel, c, 70, r * 5.0, r * 45.0, r * 0.3, 1.3, Vector2.ZERO, PI, 1.6, 0.9)
-	fx.burst(pos, vel, Color(1.0, 0.55, 0.3), 40, r * 3.0, r * 25.0, r * 0.2, 0.9, Vector2.ZERO, PI, 2.0, 0.8)
+	fx.burst(pos, vel, c, 60, r * 8.0, r * 45.0, r * 0.3, 1.3, Vector2.ZERO, PI, 1.6, 0.9, r * 1.5)
+	fx.burst(pos, vel, Color(1.0, 0.55, 0.3), 30, r * 5.0, r * 25.0, r * 0.2, 0.9, Vector2.ZERO, PI, 2.0, 0.8, r)
 	fx.ring(pos, vel, r * 14.0, c, 1.2, FX.Ring.SHOCKWAVE, 0.04, 1.6)
 	var cause: String = ev["cause"]
 	var title := "SHATTERED" if cause == "SHATTERED" else "CONSUMED"

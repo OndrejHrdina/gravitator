@@ -17,6 +17,11 @@ var _drone_player: AudioStreamPlayer
 
 func _ready() -> void:
 	_rng.randomize()
+	# A limiter on the master bus keeps pile-ups of impacts loud but clean.
+	var limiter := AudioEffectHardLimiter.new()
+	limiter.pre_gain_db = -2.0
+	limiter.ceiling_db = -0.5
+	AudioServer.add_bus_effect(0, limiter)
 	_streams["pop"] = _wav(_pop())
 	_streams["gulp"] = _wav(_gulp())
 	_streams["thud"] = _wav(_thud())

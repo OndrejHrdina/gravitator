@@ -54,7 +54,7 @@ void fragment() {
 	float a = smoothstep(1.0, 0.15, d);
 	float f = clamp(v_f, 0.0, 1.0);
 	// White-hot at birth, the material colour mid-life, embers at the end.
-	vec3 c = mix(vec3(1.0, 0.9, 0.7) * 1.9, v_col.rgb * 1.6, smoothstep(0.0, 0.3, f));
+	vec3 c = mix(vec3(1.0, 0.9, 0.7) * 1.6, v_col.rgb * 1.5, smoothstep(0.0, 0.12, f));
 	c = mix(c, v_col.rgb * 0.5 + vec3(0.45, 0.05, 0.0), smoothstep(0.55, 1.0, f));
 	float fade = (1.0 - f) * (1.0 - f);
 	COLOR = vec4(c * v_col.a * fade, a);

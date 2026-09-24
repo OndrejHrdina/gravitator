@@ -72,8 +72,11 @@ func spark(pos: Vector2, vel: Vector2, carrier: Vector2, color: Color, size: flo
 
 
 ## A spray of sparks. `dir` = Vector2.ZERO means all directions.
+## `origin_radius` scatters the birth points so a big burst doesn't start as
+## one blinding dot.
 func burst(pos: Vector2, carrier: Vector2, color: Color, count: float, speed_min: float, speed_max: float,
-		size: float, life: float, dir := Vector2.ZERO, spread := PI, drag := 2.0, brightness := 1.0) -> void:
+		size: float, life: float, dir := Vector2.ZERO, spread := PI, drag := 2.0, brightness := 1.0,
+		origin_radius := 0.0) -> void:
 	var n := mini(int(count), 400)
 	var base_ang := dir.angle() if dir != Vector2.ZERO else 0.0
 	for k in n:
@@ -82,7 +85,8 @@ func burst(pos: Vector2, carrier: Vector2, color: Color, count: float, speed_min
 		var c := color
 		if _rng.randf() < 0.3:
 			c = c.lerp(Color(1.0, 0.8, 0.4), 0.5)
-		spark(pos, Vector2.from_angle(a) * spd, carrier, c, size * _rng.randf_range(0.5, 1.4),
+		var dv := Vector2.from_angle(a)
+		spark(pos + dv * origin_radius * _rng.randf(), dv * spd, carrier, c, size * _rng.randf_range(0.5, 1.4),
 			life * _rng.randf_range(0.6, 1.3), drag, brightness * _rng.randf_range(0.7, 1.3))
 
 
