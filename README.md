@@ -6,7 +6,9 @@ A 2D gravity sandbox for **Godot 4.7** (latest stable). The universe is full of 
 
 You start as a little rock. Your only controls are **where you aim** and **when you thrust**. Thrusting blasts part of your own mass away from the cursor, and the recoil pushes you toward it. Mass is fuel, but growing is the goal, so every burst is a trade.
 
-![icon](icon.svg)
+| Swallowing a pebble | Orbiting a young star | Mass (→) and heat (↓) |
+|---|---|---|
+| ![eating](docs/eat.jpg) | ![star system](docs/system.jpg) | ![gallery](docs/gallery.jpg) |
 
 ## Running it
 
